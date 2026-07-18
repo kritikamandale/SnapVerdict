@@ -1,4 +1,4 @@
-# Code — Multi-Modal Damage Claim Verification
+# SnapVerdict
 
 Multi-modal evidence review system for the HackerRank Orchestrate (June 2026) hackathon. Verifies visual evidence for damage claims across **cars**, **laptops**, and **packages** using Google Gemini's vision API.
 
