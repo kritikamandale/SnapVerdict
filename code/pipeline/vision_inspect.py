@@ -3,8 +3,8 @@ Vision inspection stage — powered by Google Gemini API.
 
 Gemini is used here specifically because it offers a free tier with no
 expiring trial credit and no credit card required, making it suitable for
-prototyping this pipeline without incurring API costs. Claude Code remains
-the build tool; only these inference calls go through Gemini.
+prototyping this pipeline without incurring API costs. Only these inference
+calls go through Gemini.
 
 Project-aware key management: keys are grouped by GCP project. Each
 project has its own 20 req/day free-tier quota. Round-robin rotates

@@ -45,6 +45,75 @@ python code/evaluation/run_eval.py
 
 Produces per-field accuracy percentages and logs every `claim_status` mismatch with side-by-side justifications. Writes temporary predictions to `dataset/eval_output_tmp.csv`.
 
+## Running the API
+
+```bash
+# Start the FastAPI server (from repo root)
+uvicorn --app-dir code api.main:app --reload --port 8000
+```
+
+### Endpoints
+
+**GET /health** — uptime check
+
+```json
+{"status": "ok"}
+```
+
+**POST /claims** — submit a single damage claim with images
+
+| Field | Type | Required |
+|---|---|---|
+| `images` | file(s) | Yes — one or more image files |
+| `user_claim` | text | Yes — the claim description |
+| `claim_object` | text | Yes — `car`, `laptop`, or `package` |
+
+**Example (curl):**
+
+```bash
+curl -X POST http://localhost:8000/claims \
+  -F "images=@dataset/images/sample/case_001/img_1.jpg" \
+  -F "user_claim=Scratch on the front bumper" \
+  -F "claim_object=car"
+```
+
+**Success response:**
+
+```json
+{
+  "evidence_standard_met": "true",
+  "evidence_standard_met_reason": "1 image submitted for car claim ...",
+  "risk_flags": "none",
+  "issue_type": "scratch",
+  "object_part": "front_bumper",
+  "claim_status": "supported",
+  "claim_status_justification": "img_1 shows a visible scratch ...",
+  "supporting_image_ids": "img_1",
+  "valid_image": "true",
+  "severity": "low",
+  "model": "gemini-2.5-flash"
+}
+```
+
+**Validation error:**
+
+```json
+{
+  "error": true,
+  "error_message": "claim_object 'bike' is not allowed. Must be one of: car, laptop, package."
+}
+```
+
+**Quota exhausted:**
+
+```json
+{
+  "error": true,
+  "error_type": "quota_exhausted",
+  "error_message": "Demo is at daily API capacity — please try again later."
+}
+```
+
 ## Pipeline Architecture
 
 Five stages, each in its own module under `code/pipeline/`:

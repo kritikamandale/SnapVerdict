@@ -25,9 +25,7 @@ sys.path.insert(0, "code")
 import pandas as pd
 
 from pipeline.load_data import load_claims
-from pipeline.evidence_check import check_evidence_sufficiency
-from pipeline.vision_inspect import inspect_claim_images
-from pipeline.decide import decide, FinalOutput
+from pipeline.process_claim import process_claim
 
 # ── paths ──────────────────────────────────────────────────────────────────────
 DATASET_ROOT     = Path("dataset")
@@ -89,7 +87,6 @@ def _write_output(rows: list[dict]) -> None:
 def run(limit: int | None = None) -> None:
     print("Loading claims, history, and evidence requirements...")
     claims, _ = load_claims(str(CLAIMS_CSV), str(HISTORY_CSV), str(REQUIREMENTS_CSV))
-    evidence_df = pd.read_csv(str(REQUIREMENTS_CSV), dtype=str).fillna("")
 
     if limit is not None:
         claims = claims[:limit]
@@ -114,40 +111,24 @@ def run(limit: int | None = None) -> None:
         print(f"[{i:02d}/{total}] Processing {uid} ({claim['claim_object']}) "
               f"{claim['image_ids']} ...", end=" ", flush=True)
 
-        # Stage 1: deterministic evidence gate
-        ev_result = check_evidence_sufficiency(
-            claim["claim_object"], claim["image_paths"], evidence_df
-        )
-
-        # Stage 2: vision inspection (skipped only when no images at all)
-        vision_result = None
-        made_api_call = False
-        if claim["image_paths"]:
-            full_paths = [str(DATASET_ROOT / p) for p in claim["image_paths"]]
-            made_api_call = True
-            try:
-                vision_result = inspect_claim_images(
-                    claim["claim_object"], claim["user_claim"], full_paths
-                )
-                print("ok")
-                # Log valid_image=False per-row (sanitization events print from vision_inspect.py)
-                if vision_result.get("valid_image") is False:
-                    print(f"  [!] valid_image=False  claim_object={claim['claim_object']}")
-                    valid_false_events.append((uid, claim["claim_object"]))
-            except Exception as exc:
-                msg = str(exc)
-                print(f"FAILED — {msg[:100]}")
-                errors.append((uid, msg))
-        else:
-            print("skipped (no images)")
-
-        # Stage 3: merge all stages into final output row
-        output = decide(claim, ev_result, vision_result)
+        made_api_call = bool(claim.get("image_paths"))
+        vision_errored = False
+        try:
+            output = process_claim(claim)
+            print("ok" if made_api_call else "skipped (no images)")
+            # Log valid_image=False per-row
+            if output.get("valid_image") == "false":
+                print(f"  [!] valid_image=False  claim_object={claim['claim_object']}")
+                valid_false_events.append((uid, claim["claim_object"]))
+        except Exception as exc:
+            msg = str(exc)
+            print(f"FAILED — {msg[:100]}")
+            errors.append((uid, msg))
+            vision_errored = True
         output[_CSV_ROW_COL] = str(row_idx)
 
         # Checkpoint only when vision succeeded (or row had no images to inspect).
         # Errored rows are NOT added to done_rows so they are retried on re-run.
-        vision_errored = made_api_call and vision_result is None
         if not vision_errored:
             completed.append(output)
             done_rows.add(row_idx)
