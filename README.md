@@ -1,161 +1,143 @@
-# HackerRank Orchestrate
+# Code — Multi-Modal Damage Claim Verification
 
-Starter repository for the **HackerRank Orchestrate** 24-hour hackathon.
+Multi-modal evidence review system for the HackerRank Orchestrate (June 2026) hackathon. Verifies visual evidence for damage claims across **cars**, **laptops**, and **packages** using Google Gemini's vision API.
 
-Build a system that verifies visual evidence for damage claims across three object types: **cars**, **laptops**, and **packages**.
-
-Your system will receive claim conversations, one or more submitted images, user claim history, and minimum evidence requirements. It must decide whether the submitted images support the claim, contradict it, or do not provide enough information.
-
-Read [`problem_statement.md`](./problem_statement.md) for the full task spec, input/output schema, and allowed values.
-
----
-
-## Contents
-
-1. [Repository layout](#repository-layout)
-2. [What you need to build](#what-you-need-to-build)
-3. [Where your code goes](#where-your-code-goes)
-4. [Quickstart](#quickstart)
-5. [Evaluation](#evaluation)
-6. [Chat transcript logging](#chat-transcript-logging)
-7. [Submission](#submission)
-8. [Judge interview](#judge-interview)
-
----
-
-## Repository layout
-
-```text
-.
-├── AGENTS.md                         # Rules for AI coding tools + transcript logging
-├── problem_statement.md              # Full task description and I/O schema
-├── README.md                         # You are here
-├── code/                             # Build your solution here
-│   ├── main.py                       # Suggested terminal entry point
-│   └── evaluation/
-│       └── main.py                   # Suggested evaluation entry point
-└── dataset/
-    ├── sample_claims.csv             # Inputs + expected outputs for development
-    ├── claims.csv                    # Inputs only; run your system on these rows
-    ├── user_history.csv              # Historical claim counts and risk context
-    ├── evidence_requirements.csv     # Minimum image evidence requirements
-    └── images/
-        ├── sample/                   # Images referenced by sample_claims.csv
-        └── test/                     # Images referenced by claims.csv
-```
-
----
-
-## What you need to build
-
-A system that, for each row in `dataset/claims.csv`, produces one row in `output.csv`.
-
-Input fields:
-
-| Column | Meaning |
-|---|---|
-| `user_id` | User submitting the claim; use this to look up `dataset/user_history.csv` |
-| `image_paths` | One or more submitted image paths, separated by semicolons |
-| `user_claim` | Chat transcript describing the issue |
-| `claim_object` | `car`, `laptop`, or `package` |
-
-Required output fields:
-
-| Column | Meaning |
-|---|---|
-| `evidence_standard_met` | Whether the image set is sufficient to evaluate the claim |
-| `evidence_standard_met_reason` | Short reason for the evidence decision |
-| `risk_flags` | Semicolon-separated risk flags, or `none` |
-| `issue_type` | Visible issue type |
-| `object_part` | Relevant object part |
-| `claim_status` | `supported`, `contradicted`, or `not_enough_information` |
-| `claim_status_justification` | Concise explanation grounded in the image evidence |
-| `supporting_image_ids` | Image IDs supporting the decision, or `none` |
-| `valid_image` | Whether the image set is usable for automated review |
-| `severity` | `none`, `low`, `medium`, `high`, or `unknown` |
-
-Hard requirements:
-
-- Must read the provided CSV files and local images.
-- Must produce `output.csv` with the exact schema in `problem_statement.md`.
-- Must include an evaluation workflow
-- Must avoid hardcoded test labels or file-specific answers.
-
-Beyond that you are free to bring your own approach: VLMs, LLMs, structured prompting, rule layers, batching, caching, evaluation pipelines, model comparison, or anything else.
-
----
-
-## Where your code goes
-
-All of your work belongs in [`code/`](./code/). The repo ships with empty starter files that you can grow into your full solution.
-
-Suggested conventions:
-
-- Put your main runnable solution in `code/main.py`, or document your own entry point clearly.
-- Put evaluation code under `code/evaluation/` or an `evaluation/` folder included in your final `code.zip`.
-- Write final predictions to `output.csv`.
-
----
-
-## Quickstart
-
-Clone this repository:
+## Setup
 
 ```bash
-git clone git@github.com:interviewstreet/hackerrank-orchestrate-june26.git
-cd hackerrank-orchestrate-june26
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env and fill in real API keys
 ```
 
-You are free to use any language or runtime. Python, JavaScript, and TypeScript are all reasonable choices.
+## Environment Variables
 
----
+All variables are set in a `.env` file at the repo root (see `.env.example`). None are hardcoded.
 
-## Evaluation
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY_1` | **Yes** (at least one) | Gemini API key (Google AI Studio) |
+| `GEMINI_API_KEY_2` | Optional | Second Gemini key |
+| `GEMINI_API_KEY_3` | Optional | Third Gemini key |
+| `GEMINI_API_KEY_4` | Optional | Fourth Gemini key |
+| `GEMINI_API_KEY_5` | Optional | Fifth Gemini key |
+| `GEMINI_API_KEY_6` | Optional | Sixth Gemini key |
+| `VISION_BACKEND` | Optional | Reserved for future multi-backend support (currently Gemini only) |
 
-The evaluation report should include:
+Keys are rotated round-robin. Exhausted keys (429) are skipped automatically for the rest of the run. **All keys from the same GCP project share a single 20 req/day quota bucket** — true quota multiplication requires keys from different GCP projects, not just different accounts under the same project.
 
-- metrics on `dataset/sample_claims.csv`
-- at least two strategies, prompts, or model configurations compared
-- the final strategy used for `output.csv`
-- operational analysis covering model calls, token usage, image usage, approximate cost, runtime, and TPM/RPM considerations
+## Running the Pipeline
 
----
+```bash
+# Full run — processes dataset/claims.csv, writes output.csv
+python code/main.py
 
-## Chat transcript logging
+# Dry run — process only the first N rows
+python code/main.py --limit 5
+```
 
-This repo ships with an `AGENTS.md` that modern AI coding tools may read. It instructs the tool to append conversation turns to a shared log file:
+## Running Evaluation
 
-| Platform | Path |
-|---|---|
-| macOS / Linux | `$HOME/hackerrank_orchestrate/log.txt` |
-| Windows | `%USERPROFILE%\hackerrank_orchestrate\log.txt` |
+```bash
+# Full evaluation against dataset/sample_claims.csv (20 labeled rows)
+python code/evaluation/run_eval.py
+```
 
-You will upload this log as your chat transcript at submission time. The chat transcript means your conversation with the AI coding tool you used to build the system. It is not the runtime logs, reasoning trace, or conversation history produced by the claim-verification agent you are building.
+Produces per-field accuracy percentages and logs every `claim_status` mismatch with side-by-side justifications. Writes temporary predictions to `dataset/eval_output_tmp.csv`.
 
-If you use multiple AI tools, include the relevant conversation logs from all of them in the same transcript file. Separate each tool's section with a clear divider and label it with the tool name.
+## Running the API
 
-Never paste secrets into the chat. If secrets are needed, use environment variables.
+```bash
+# Start the FastAPI server (from repo root)
+uvicorn --app-dir code api.main:app --reload --port 8000
+```
 
----
+### Endpoints
 
-## Submission
+**GET /health** — uptime check
 
-Submit the following files as instructed by HackerRank:
+```json
+{"status": "ok"}
+```
 
-1. **Code zip**: zip your runnable solution, README, prompts/configs, and evaluation folder. Exclude virtualenvs, `node_modules`, build artifacts, and unnecessary generated files.
-2. **Predictions CSV**: your final `output.csv` for all rows in `dataset/claims.csv`.
-3. **Chat transcript**: the `log.txt` from the path in [Chat transcript logging](#chat-transcript-logging).
+**POST /claims** — submit a single damage claim with images
 
-Before submitting, confirm:
+| Field | Type | Required |
+|---|---|---|
+| `images` | file(s) | Yes — one or more image files |
+| `user_claim` | text | Yes — the claim description |
+| `claim_object` | text | Yes — `car`, `laptop`, or `package` |
 
-- `output.csv` has one row per row in `dataset/claims.csv`.
-- `output.csv` has the exact required columns in the exact required order.
-- Your evaluation files are included in `code.zip`.
+**Example (curl):**
 
----
+```bash
+curl -X POST http://localhost:8000/claims \
+  -F "images=@dataset/images/sample/case_001/img_1.jpg" \
+  -F "user_claim=Scratch on the front bumper" \
+  -F "claim_object=car"
+```
 
-## Judge interview
+**Success response:**
 
-After submission, the AI Judge may ask about your approach, implementation decisions, model usage, evaluation strategy, and how you used AI while building the solution.
+```json
+{
+  "evidence_standard_met": "true",
+  "evidence_standard_met_reason": "1 image submitted for car claim ...",
+  "risk_flags": "none",
+  "issue_type": "scratch",
+  "object_part": "front_bumper",
+  "claim_status": "supported",
+  "claim_status_justification": "img_1 shows a visible scratch ...",
+  "supporting_image_ids": "img_1",
+  "valid_image": "true",
+  "severity": "low",
+  "model": "gemini-2.5-flash"
+}
+```
 
-Be prepared to explain your solution in detail.
+**Validation error:**
+
+```json
+{
+  "error": true,
+  "error_message": "claim_object 'bike' is not allowed. Must be one of: car, laptop, package."
+}
+```
+
+**Quota exhausted:**
+
+```json
+{
+  "error": true,
+  "error_type": "quota_exhausted",
+  "error_message": "Demo is at daily API capacity — please try again later."
+}
+```
+
+## Pipeline Architecture
+
+Five stages, each in its own module under `code/pipeline/`:
+
+| # | Stage | Module | What it does |
+|---|---|---|---|
+| 1 | **load_data** | `load_data.py` | Reads `claims.csv`, `user_history.csv`, `evidence_requirements.csv`; joins claim records with user history |
+| 2 | **evidence_check** | `evidence_check.py` | Deterministic gate — checks whether enough images were submitted per the evidence requirements table |
+| 3 | **vision_inspect** | `vision_inspect.py` | Sends images + claim text to Gemini 2.5 Flash; returns structured JSON with damage assessment; sanitizes `object_part` against allowed-value lists (strips prefixes, normalizes spaces to underscores) |
+| 4 | **history_risk** | `history_risk.py` | Extracts risk flags from `user_history.csv` for each user (claim frequency, prior rejections) |
+| 5 | **decide** | `decide.py` | Merges evidence check + vision result + history flags into the final output row |
+
+## Checkpointing
+
+Both `main.py` and `run_eval.py` write results incrementally. On re-run, completed rows are detected by their `_csv_row` index (0-based position in the input CSV) and skipped automatically. Interrupted runs resume from where they left off — no work is duplicated.
+
+Failed rows (vision API errors after all retries) are **not** checkpointed and will be retried on the next run.
+
+## Known Limitations
+
+See `evaluation_report.md` for full details. Summary:
+
+- Gemini free tier limits to 20 requests/day/project/model — all keys from the same GCP project share this cap; true multiplication requires separate GCP projects
+- `claim_status` accuracy varies; model sometimes over-interprets image severity
+- No translation layer — multilingual claims (Hindi, Spanish, Chinese) are sent to Gemini as-is
+- `risk_flags` from history are passed through but not escalated by the pipeline
+- `object_part` requires post-API sanitization (the model prepends claim_object names like "car door" instead of "door")
